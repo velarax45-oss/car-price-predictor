@@ -684,13 +684,13 @@ with g4:
         line=dict(color=ACC, width=3),
         marker=dict(color=ACC, size=7),
         fill="tozeroy",
-        fillcolor="#ff2d0015"
+        fillcolor="rgba(255, 45, 0, 0.1)",  # ✅ FIXED: Proper RGBA
+        showlegend=False
     ))
     theme(fig, "DEPRECIATION CURVE")
     fig.update_xaxes(title="Age (years)")
     fig.update_yaxes(title="Median Price (₹)", tickprefix="₹", tickformat=",.0f")
     st.plotly_chart(fig, use_container_width=True)
-
 g5, g6 = st.columns(2)
 
 with g5:
