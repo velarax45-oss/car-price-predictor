@@ -1,57 +1,109 @@
 import streamlit as st
-import pickle
 import pandas as pd
+import pickle
 
-# Load trained pipeline
+# -----------------------------
+# PAGE CONFIG
+# -----------------------------
+st.set_page_config(
+    page_title="Car Price Predictor",
+    page_icon="🚗",
+    layout="wide"
+)
+
+# -----------------------------
+# LOAD MODEL
+# -----------------------------
 model = pickle.load(open("car_pipeline.pkl", "rb"))
 
-# Load dataset ONLY for dropdown options
 df = pd.read_csv("used_cars_dataset_v2.csv")
 
-st.title("🚗 Car Price Prediction System")
+# -----------------------------
+# HEADER
+# -----------------------------
+st.markdown(
+    """
+    <h1 style='text-align: center; color: #4CAF50;'>
+        🚗 Car Price Prediction App
+    </h1>
+    <p style='text-align: center; color: grey;'>
+        Predict used car prices using Machine Learning
+    </p>
+    """,
+    unsafe_allow_html=True
+)
 
-# -----------------------
-# INPUT FIELDS
-# -----------------------
+st.divider()
 
-brand = st.selectbox("Brand", df["Brand"].unique())
-car_model = st.selectbox("Model", df["model"].unique())
+# -----------------------------
+# SIDEBAR INPUTS
+# -----------------------------
+st.sidebar.header("Enter Car Details")
 
-year = st.number_input("Year", min_value=1990, max_value=2026, value=2015)
-age = st.number_input("Age", min_value=0, max_value=40, value=5)
+brand = st.sidebar.selectbox("Brand", df["Brand"].unique())
+model_name = st.sidebar.selectbox("Model", df["model"].unique())
+year = st.sidebar.number_input("Year", 1990, 2026, 2015)
+age = st.sidebar.number_input("Age", 0, 40, 5)
+km_driven = st.sidebar.number_input("KM Driven", 0, 500000, 50000)
+transmission = st.sidebar.selectbox("Transmission", df["Transmission"].unique())
+owner = st.sidebar.selectbox("Owner", df["Owner"].unique())
+fuel = st.sidebar.selectbox("Fuel Type", df["FuelType"].unique())
 
-km_driven = st.number_input("KM Driven", min_value=0, value=50000)
+# -----------------------------
+# MAIN AREA
+# -----------------------------
+col1, col2 = st.columns([2, 1])
 
-transmission = st.selectbox("Transmission", df["Transmission"].unique())
-owner = st.selectbox("Owner", df["Owner"].unique())
-fuel = st.selectbox("Fuel Type", df["FuelType"].unique())
+with col1:
+    st.subheader("Prediction Section")
 
-# -----------------------
-# PREDICTION
-# -----------------------
+    if st.button("🔍 Predict Price"):
 
-if st.button("Predict Price"):
+        input_data = pd.DataFrame([[
+            year,
+            age,
+            km_driven,
+            brand,
+            model_name,
+            transmission,
+            owner,
+            fuel
+        ]], columns=[
+            "Year",
+            "Age",
+            "kmDriven",
+            "Brand",
+            "model",
+            "Transmission",
+            "Owner",
+            "FuelType"
+        ])
 
-    input_data = pd.DataFrame([[
-        year,
-        age,
-        km_driven,
-        brand,
-        car_model,
-        transmission,
-        owner,
-        fuel
-    ]], columns=[
-        "Year",
-        "Age",
-        "kmDriven",
-        "Brand",
-        "model",
-        "Transmission",
-        "Owner",
-        "FuelType"
-    ])
+        prediction = model.predict(input_data)[0]
 
-    prediction = model.predict(input_data)
+        st.success("Prediction Completed!")
 
-    st.success(f"Predicted Price: ₹ {int(prediction[0]):,}")
+        st.markdown(
+            f"""
+            <div style="
+                padding: 20px;
+                border-radius: 10px;
+                background-color: #1e1e1e;
+                color: white;
+                text-align: center;
+                font-size: 22px;
+            ">
+                Estimated Price: <br>
+                <span style="font-size:30px; color:#00ff88;">
+                    ₹ {int(prediction):,}
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+with col2:
+    st.subheader("Info Panel")
+    st.info("This model uses Random Forest + preprocessing pipeline")
+    st.warning("Prediction is based on historical dataset trends")
+    st.write("Tip: Lower KM + newer year = higher price")
