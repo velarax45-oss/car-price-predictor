@@ -6,25 +6,36 @@ import plotly.express as px
 import plotly.graph_objects as go
 import random
 
+# ── PAGE CONFIG ───────────────────────────────────────
 st.set_page_config(
     page_title="VELERAX — Street Valuator",
     page_icon="🏎️",
     layout="wide"
 )
 
-model = pickle.load(open("car_pipeline.pkl", "rb"))
-df    = pd.read_csv("used_cars_dataset_v2.csv")
+# ── LOAD DATA & MODEL ─────────────────────────────────
+@st.cache_resource
+def load_model():
+    return pickle.load(open("car_pipeline.pkl", "rb"))
 
-df['kmDriven'] = pd.to_numeric(
-    df['kmDriven'].astype(str).str.replace(',','').str.extract(r'(\d+)')[0], errors='coerce')
-df['AskPrice'] = pd.to_numeric(
-    df['AskPrice'].astype(str).str.replace(',','').str.extract(r'(\d+)')[0], errors='coerce')
-df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
-df = df.dropna(subset=['AskPrice','kmDriven','Year'])
-df['Age'] = (2026 - df['Year']).astype(int)
-df = df[df['AskPrice'] < df['AskPrice'].quantile(0.99)]
-df = df[(df['AskPrice'] > 0) & (df['kmDriven'] > 0)]
+@st.cache_data
+def load_data():
+    df = pd.read_csv("used_cars_dataset_v2.csv")
+    df['kmDriven'] = pd.to_numeric(
+        df['kmDriven'].astype(str).str.replace(',','').str.extract(r'(\d+)')[0], errors='coerce')
+    df['AskPrice'] = pd.to_numeric(
+        df['AskPrice'].astype(str).str.replace(',','').str.extract(r'(\d+)')[0], errors='coerce')
+    df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
+    df = df.dropna(subset=['AskPrice','kmDriven','Year'])
+    df['Age'] = (2026 - df['Year']).astype(int)
+    df = df[df['AskPrice'] < df['AskPrice'].quantile(0.99)]
+    df = df[(df['AskPrice'] > 0) & (df['kmDriven'] > 0)]
+    return df
 
+model = load_model()
+df = load_data()
+
+# ── FAST & FURIOUS QUOTES ─────────────────────────────
 FF_QUOTES = [
     ("I live my life a quarter mile at a time.", "Dominic Toretto"),
     ("It doesn't matter if you win by an inch or a mile. Winning's winning.", "Dom Toretto"),
@@ -43,6 +54,7 @@ FF_QUOTES = [
     ("I live life one quarter mile at a time and in that window I'm free.", "Dom Toretto"),
 ]
 
+# ── THEME COLORS ──────────────────────────────────────
 CB   = "#0a0a0f"
 CARD = "#0f0f1a"
 ACC  = "#ff2d00"
@@ -66,6 +78,7 @@ def theme(fig, title=""):
     )
     return fig
 
+# ── CUSTOM CSS ────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
@@ -684,13 +697,14 @@ with g4:
         line=dict(color=ACC, width=3),
         marker=dict(color=ACC, size=7),
         fill="tozeroy",
-        fillcolor="rgba(255, 45, 0, 0.1)",  # ✅ FIXED: Proper RGBA
+        fillcolor="rgba(255, 45, 0, 0.1)",
         showlegend=False
     ))
     theme(fig, "DEPRECIATION CURVE")
     fig.update_xaxes(title="Age (years)")
     fig.update_yaxes(title="Median Price (₹)", tickprefix="₹", tickformat=",.0f")
     st.plotly_chart(fig, use_container_width=True)
+
 g5, g6 = st.columns(2)
 
 with g5:
