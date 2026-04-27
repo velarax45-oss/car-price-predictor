@@ -2,647 +2,396 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-import plotly.express as px
 import plotly.graph_objects as go
 import random
 
-# ── PAGE CONFIG ───────────────────────────────────────
 st.set_page_config(
-    page_title="VELERAX — Street Valuator",
-    page_icon="🏎️",
+    page_title="VELERAX — Car Price Predictor",
+    page_icon="🚗",
     layout="wide"
 )
 
-# ── LOAD DATA & MODEL ─────────────────────────────────
-@st.cache_resource
-def load_model():
-    return pickle.load(open("car_pipeline.pkl", "rb"))
+model = pickle.load(open("car_pipeline.pkl", "rb"))
+df    = pd.read_csv("used_cars_dataset_v2.csv")
 
-@st.cache_data
-def load_data():
-    df = pd.read_csv("used_cars_dataset_v2.csv")
-    df['kmDriven'] = pd.to_numeric(
-        df['kmDriven'].astype(str).str.replace(',','').str.extract(r'(\d+)')[0], errors='coerce')
-    df['AskPrice'] = pd.to_numeric(
-        df['AskPrice'].astype(str).str.replace(',','').str.extract(r'(\d+)')[0], errors='coerce')
-    df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
-    df = df.dropna(subset=['AskPrice','kmDriven','Year'])
-    df['Age'] = (2026 - df['Year']).astype(int)
-    df = df[df['AskPrice'] < df['AskPrice'].quantile(0.99)]
-    df = df[(df['AskPrice'] > 0) & (df['kmDriven'] > 0)]
-    return df
+df['kmDriven'] = pd.to_numeric(
+    df['kmDriven'].astype(str).str.replace(',','').str.extract(r'(\d+)')[0], errors='coerce')
+df['AskPrice'] = pd.to_numeric(
+    df['AskPrice'].astype(str).str.replace(',','').str.extract(r'(\d+)')[0], errors='coerce')
+df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
+df = df.dropna(subset=['AskPrice','kmDriven','Year'])
+df['Age'] = (2026 - df['Year']).astype(int)
+df = df[df['AskPrice'] < df['AskPrice'].quantile(0.99)]
+df = df[(df['AskPrice'] > 0) & (df['kmDriven'] > 0)]
 
-model = load_model()
-df = load_data()
-
-# ── FAST & FURIOUS QUOTES ─────────────────────────────
 FF_QUOTES = [
     ("I live my life a quarter mile at a time.", "Dominic Toretto"),
     ("It doesn't matter if you win by an inch or a mile. Winning's winning.", "Dom Toretto"),
-    ("I'm a boy who appreciates a good body, regardless of the make.", "Dom Toretto"),
-    ("Money will come and go. We all know that. The most important thing in life will always be the people in this room.", "Dom Toretto"),
-    ("Ask any racer. Any real racer. It doesn't matter if you win by an inch or a mile.", "Dom Toretto"),
-    ("You break her heart, I'll break your neck.", "Dom Toretto"),
-    ("I used to drag race. It's not exactly a science.", "Brian O'Conner"),
-    ("I'm a genuine driver. I'm an honest driver.", "Brian O'Conner"),
-    ("Danger is the cornerstone of adventure.", "Luke Hobbs"),
-    ("The thing about street fights... the street always wins.", "Luke Hobbs"),
-    ("You want a piece? Let's go!", "Luke Hobbs"),
     ("I don't have friends. I got family.", "Dominic Toretto"),
-    ("This is the life we chose, the life we lead.", "Dom Toretto"),
-    ("You're never going to win this race with a turbo.", "Jesse"),
-    ("I live life one quarter mile at a time and in that window I'm free.", "Dom Toretto"),
+    ("Money will come and go. The most important thing will always be family.", "Dom Toretto"),
+    ("Danger is the cornerstone of adventure.", "Luke Hobbs"),
+    ("I'm a genuine driver. I'm an honest driver.", "Brian O'Conner"),
 ]
 
-# ── THEME COLORS ──────────────────────────────────────
-CB   = "#0a0a0f"
-CARD = "#0f0f1a"
-ACC  = "#ff2d00"
-ACC2 = "#ff6b00"
-NEON = "#00d4ff"
-TEXT = "#f0ede8"
-DIM  = "#5a5870"
-GRID = "#1a1a2a"
-
-def theme(fig, title=""):
-    fig.update_layout(
-        title=dict(text=title,
-                   font=dict(family="Bebas Neue, Impact, sans-serif",
-                              size=16, color=TEXT), x=0),
-        paper_bgcolor=CARD, plot_bgcolor=CARD,
-        font=dict(family="Rajdhani, DM Sans, sans-serif", color=DIM, size=12),
-        margin=dict(l=16, r=16, t=48, b=16),
-        xaxis=dict(gridcolor=GRID, linecolor=GRID, zerolinecolor=GRID),
-        yaxis=dict(gridcolor=GRID, linecolor=GRID, zerolinecolor=GRID),
-        showlegend=False
-    )
-    return fig
-
-# ── CUSTOM CSS ────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&family=Poppins:wght@400;600;700;800&display=swap');
 
-*, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, [class*="css"] {
-    font-family: 'Rajdhani', sans-serif !important;
-    background-color: #0a0a0f !important;
-    color: #f0ede8 !important;
+    font-family: 'Poppins', 'Segoe UI', sans-serif !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    min-height: 100vh;
+    color: #333 !important;
 }
 #MainMenu, footer, header { visibility: hidden; }
-.block-container { padding: 0 !important; max-width: 100% !important; }
+.block-container {
+    padding: 24px 24px 40px !important;
+    max-width: 980px !important;
+    margin: 0 auto !important;
+}
 .stSidebar { display: none !important; }
-div[data-testid="column"] { padding: 0 0.4rem !important; }
+div[data-testid="column"] { padding: 0 0.5rem !important; }
 
-/* ── SCANLINES overlay ── */
-body::before {
-    content: '';
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 2px,
-        rgba(0,0,0,0.04) 2px,
-        rgba(0,0,0,0.04) 4px
-    );
-    pointer-events: none;
-    z-index: 9999;
-}
-
-/* ── TOP BAR ── */
-.topbar {
-    background: #0a0a0f;
-    border-bottom: 2px solid #ff2d00;
-    padding: 10px 48px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.topbar-logo {
-    font-family: 'Orbitron', monospace;
-    font-weight: 900;
-    font-size: 20px;
-    color: #ff2d00;
-    letter-spacing: 0.15em;
-    text-shadow: 0 0 20px #ff2d0066;
-}
-.topbar-tag {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 12px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: #5a5870;
-}
-.topbar-right {
-    font-family: 'Orbitron', monospace;
-    font-size: 11px;
-    color: #00d4ff;
-    letter-spacing: 0.1em;
-    text-shadow: 0 0 10px #00d4ff66;
-}
-
-/* ── HERO ── */
-.hero-wrap {
-    background: linear-gradient(135deg, #0a0a0f 0%, #0f0a1a 50%, #0a0f0a 100%);
-    padding: 64px 48px 56px;
-    position: relative;
+/* ── MAIN CONTAINER ── */
+.main-card {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
     overflow: hidden;
-    border-bottom: 1px solid #1a1a2a;
-}
-.hero-wrap::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background:
-        radial-gradient(ellipse at 20% 50%, #ff2d0012 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 50%, #00d4ff0a 0%, transparent 50%);
-    pointer-events: none;
-}
-.hero-wrap::after {
-    content: 'NFS';
-    position: absolute;
-    right: -10px; bottom: -40px;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 220px;
-    color: #ffffff04;
-    pointer-events: none;
-    line-height: 1;
-}
-.speed-lines {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: repeating-linear-gradient(
-        90deg,
-        transparent,
-        transparent 40px,
-        #ff2d0005 40px,
-        #ff2d0005 41px
-    );
-    pointer-events: none;
-}
-.hero-eyebrow {
-    font-family: 'Orbitron', monospace;
-    font-size: 10px;
-    letter-spacing: 0.3em;
-    color: #ff6b00;
-    text-transform: uppercase;
-    margin-bottom: 16px;
-    text-shadow: 0 0 10px #ff6b0066;
-}
-.hero-h1 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(4rem, 8vw, 7rem);
-    color: #f0ede8;
-    line-height: 0.9;
-    letter-spacing: 0.04em;
-    margin-bottom: 6px;
-}
-.hero-h1 .red { color: #ff2d00; text-shadow: 0 0 30px #ff2d0099; }
-.hero-h1 .blue { color: #00d4ff; text-shadow: 0 0 30px #00d4ff66; }
-.hero-sub {
-    font-size: 15px;
-    color: #5a5870;
-    max-width: 480px;
-    line-height: 1.6;
-    margin-top: 14px;
-    font-family: 'Rajdhani', sans-serif;
-    letter-spacing: 0.03em;
+    margin-bottom: 0;
 }
 
-/* ── QUOTE BANNER ── */
-.quote-banner {
-    background: linear-gradient(90deg, #ff2d00, #ff6b00);
-    padding: 18px 48px;
-    display: flex;
-    align-items: center;
-    gap: 20px;
+/* ── HEADER ── */
+.app-header {
+    background: linear-gradient(45deg, #ff6b6b, #feca57);
+    padding: 32px 40px;
+    text-align: center;
+    color: white;
 }
-.quote-icon {
-    font-size: 28px;
-    opacity: 0.6;
-    flex-shrink: 0;
-}
-.quote-text {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 18px;
-    color: #fff;
-    letter-spacing: 0.05em;
-    line-height: 1.2;
-}
-.quote-author {
-    font-family: 'Orbitron', monospace;
-    font-size: 10px;
-    color: #ffffff99;
-    letter-spacing: 0.2em;
-    margin-top: 2px;
-}
-
-/* ── FORM ── */
-.form-wrap {
-    padding: 40px 48px 32px;
-    background: #0a0a0f;
-    border-bottom: 1px solid #1a1a2a;
-}
-.form-label {
-    font-family: 'Orbitron', monospace;
-    font-size: 10px;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: #ff2d00;
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-.form-label::after { content: ''; flex: 1; height: 1px; background: #1a1a2a; }
-
-/* ── RESULT ── */
-.result-wrap {
-    background: #0a0a0f;
-    border-top: 3px solid #ff2d00;
-    border-bottom: 3px solid #ff2d00;
-    padding: 40px 48px;
-    position: relative;
-    overflow: hidden;
-}
-.result-wrap::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: radial-gradient(ellipse at 30% 50%, #ff2d0010, transparent 60%);
-    pointer-events: none;
-}
-.result-glow {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #ff2d00, #ff6b00, #00d4ff, transparent);
-}
-.result-eyebrow {
-    font-family: 'Orbitron', monospace;
-    font-size: 10px;
-    letter-spacing: 0.25em;
-    color: #ff6b00;
-    text-transform: uppercase;
+.app-header h1 {
+    font-size: 2.4rem;
+    font-weight: 800;
     margin-bottom: 8px;
-    text-shadow: 0 0 10px #ff6b0066;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.app-header p {
+    font-size: 1.1rem;
+    opacity: 0.92;
+    font-weight: 500;
+}
+
+/* ── SECTION TITLES ── */
+.section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+/* ── FORM BODY ── */
+.form-body { padding: 36px 40px 28px; background: #fff; }
+
+/* ── RESULT BOX ── */
+.result-box {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 28px;
+    border-radius: 16px;
+    text-align: center;
+    margin-bottom: 20px;
 }
 .result-price {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(3.5rem, 8vw, 6.5rem);
-    color: #ff2d00;
-    letter-spacing: 0.04em;
-    line-height: 1;
-    text-shadow: 0 0 40px #ff2d0066;
-}
-.result-range {
-    font-family: 'Orbitron', monospace;
-    font-size: 11px;
-    color: #00d4ff;
-    margin-top: 6px;
-    letter-spacing: 0.1em;
-    text-shadow: 0 0 10px #00d4ff44;
-}
-.rchips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
-.rchip {
-    background: #0f0f1a;
-    border: 1px solid #ff2d0044;
-    border-radius: 4px;
-    padding: 8px 14px;
-    font-size: 12px;
-    color: #f0ede8;
-    text-align: center;
-    min-width: 80px;
-    font-family: 'Rajdhani', sans-serif;
-    letter-spacing: 0.05em;
-}
-.rchip strong {
-    display: block;
-    font-family: 'Orbitron', monospace;
-    font-size: 13px;
-    color: #ff6b00;
-    margin-bottom: 2px;
-}
-
-/* ── STAT PANEL ── */
-.stat-panel {
-    background: #0f0f1a;
-    border: 1px solid #1a1a2a;
-    border-left: 3px solid #00d4ff;
-    border-radius: 4px;
-    padding: 16px 20px;
-    margin-bottom: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.stat-label {
-    font-family: 'Orbitron', monospace;
-    font-size: 10px;
-    letter-spacing: 0.15em;
-    color: #5a5870;
-    text-transform: uppercase;
-}
-.stat-value {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 20px;
-    color: #00d4ff;
-    letter-spacing: 0.05em;
-    text-shadow: 0 0 10px #00d4ff44;
-}
-
-/* ── ANALYTICS ── */
-.analytics-wrap { padding: 40px 48px 32px; background: #0a0a0f; }
-.analytics-heading {
-    font-family: 'Bebas Neue', sans-serif;
     font-size: 3rem;
-    color: #f0ede8;
-    letter-spacing: 0.06em;
-    margin-bottom: 28px;
+    font-weight: 800;
+    margin: 8px 0 4px;
+    letter-spacing: -0.02em;
+}
+.result-sub { font-size: 1rem; opacity: 0.88; margin-bottom: 16px; }
+.stat-chips {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+}
+.stat-chip {
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+}
+.stat-chip-val {
+    font-size: 1.4rem;
+    font-weight: 700;
     line-height: 1;
+    margin-bottom: 3px;
 }
-.analytics-heading .red {
-    color: #ff2d00;
-    text-shadow: 0 0 20px #ff2d0066;
+.stat-chip-lbl { font-size: 11px; opacity: 0.8; letter-spacing: 0.05em; }
+
+/* ── QUOTE BOX ── */
+.quote-box {
+    background: linear-gradient(45deg, #ff6b6b18, #feca5718);
+    border-left: 4px solid #ff6b6b;
+    border-radius: 0 12px 12px 0;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+.quote-text { font-size: 14px; color: #555; font-style: italic; line-height: 1.6; }
+.quote-author { font-size: 11px; color: #ff6b6b; font-weight: 700;
+                letter-spacing: 0.1em; margin-top: 6px; text-transform: uppercase; }
+
+/* ── PREDICT BUTTON ── */
+.stButton > button {
+    width: 100% !important;
+    padding: 18px !important;
+    background: linear-gradient(45deg, #ff6b6b, #feca57) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 12px !important;
+    font-size: 1.25rem !important;
+    font-weight: 700 !important;
+    font-family: 'Poppins', sans-serif !important;
+    letter-spacing: 0.04em !important;
+    cursor: pointer !important;
+    box-shadow: 0 6px 20px rgba(255,107,107,0.35) !important;
+    transition: all 0.3s !important;
+    margin-top: 8px !important;
+}
+.stButton > button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 10px 28px rgba(255,107,107,0.5) !important;
 }
 
-/* ── QUOTE CARDS ── */
-.quotes-wrap { padding: 40px 48px; background: #0f0f1a; border-top: 1px solid #1a1a2a; }
-.quotes-heading {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.5rem;
-    color: #f0ede8;
-    letter-spacing: 0.06em;
-    margin-bottom: 24px;
-}
-.quotes-heading span { color: #ff6b00; }
-.qgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.qcard {
-    background: #0a0a0f;
-    border: 1px solid #1a1a2a;
-    border-top: 2px solid #ff2d00;
-    border-radius: 4px;
-    padding: 20px;
-    position: relative;
-    overflow: hidden;
-}
-.qcard::before {
-    content: '"';
-    position: absolute;
-    top: -10px; right: 10px;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 80px;
-    color: #ff2d0015;
-    pointer-events: none;
-    line-height: 1;
-}
-.qcard-text {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 15px;
-    color: #c0bdc8;
-    line-height: 1.6;
-    letter-spacing: 0.02em;
-    margin-bottom: 12px;
-}
-.qcard-author {
-    font-family: 'Orbitron', monospace;
-    font-size: 9px;
-    color: #ff6b00;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    text-shadow: 0 0 8px #ff6b0066;
-}
-.qcard-dash {
-    display: inline-block;
-    width: 20px;
-    height: 2px;
-    background: #ff2d00;
-    vertical-align: middle;
-    margin-right: 8px;
-}
-
-/* ── FOOTER ── */
-.footer {
-    background: #0a0a0f;
-    border-top: 2px solid #ff2d00;
-    padding: 20px 48px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-.footer-left {
-    font-family: 'Orbitron', monospace;
-    font-size: 10px;
-    color: #2a2835;
-    letter-spacing: 0.1em;
-    line-height: 1.8;
-}
-.footer-right {
-    font-family: 'Orbitron', monospace;
-    font-size: 11px;
-    color: #5a5870;
-    letter-spacing: 0.15em;
-}
-.footer-right span {
-    color: #ff2d00;
-    font-size: 16px;
-    font-weight: 900;
-    text-shadow: 0 0 10px #ff2d0066;
-}
-
-/* ── STREAMLIT OVERRIDES ── */
+/* ── INPUTS ── */
 .stSelectbox > div > div,
 .stNumberInput > div > div > input {
-    background: #0f0f1a !important;
-    border: 1px solid #1a1a2a !important;
-    border-radius: 4px !important;
-    color: #f0ede8 !important;
-    font-family: 'Rajdhani', sans-serif !important;
+    background: #fff !important;
+    border: 2px solid #e1e5e9 !important;
+    border-radius: 12px !important;
+    color: #333 !important;
+    font-family: 'Poppins', sans-serif !important;
     font-size: 15px !important;
+    padding: 12px 14px !important;
+    transition: all 0.3s !important;
 }
 .stSelectbox > div > div:focus-within,
 .stNumberInput > div > div > input:focus {
-    border-color: #ff2d00 !important;
-    box-shadow: 0 0 0 2px #ff2d0033, 0 0 12px #ff2d0022 !important;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102,126,234,0.12) !important;
 }
 label, .stSelectbox label, .stNumberInput label {
-    font-family: 'Orbitron', monospace !important;
-    font-size: 9px !important;
-    letter-spacing: 0.2em !important;
-    text-transform: uppercase !important;
-    color: #5a5870 !important;
+    font-family: 'Poppins', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #333 !important;
+    letter-spacing: 0.01em !important;
+    text-transform: none !important;
+    margin-bottom: 4px !important;
 }
-.stButton > button {
-    width: 100% !important;
-    background: linear-gradient(90deg, #ff2d00, #ff6b00) !important;
-    color: #fff !important;
-    font-family: 'Bebas Neue', sans-serif !important;
-    font-size: 20px !important;
-    letter-spacing: 0.15em !important;
-    border: none !important;
-    border-radius: 4px !important;
-    padding: 0.75rem !important;
-    text-shadow: 0 0 10px #ff2d0066 !important;
-    box-shadow: 0 4px 20px #ff2d0044 !important;
-    transition: all 0.2s !important;
+
+/* ── ANALYTICS SECTION ── */
+.analytics-wrap {
+    background: #f8f9ff;
+    border-top: 1px solid #eef0f8;
+    padding: 32px 40px 36px;
+    border-radius: 0 0 20px 20px;
 }
-.stButton > button:hover {
-    box-shadow: 0 4px 30px #ff2d0088 !important;
-    transform: translateY(-1px) !important;
+.analytics-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 4px;
 }
+.analytics-sub { font-size: 13px; color: #888; margin-bottom: 24px; }
+
+/* ── FOOTER ── */
+.app-footer {
+    text-align: center;
+    padding: 20px;
+    color: rgba(255,255,255,0.7);
+    font-size: 13px;
+    font-family: 'Poppins', sans-serif;
+    letter-spacing: 0.05em;
+}
+.app-footer span { color: #feca57; font-weight: 700; font-size: 15px; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── TOP BAR ───────────────────────────────────────────
+# ── HEADER ────────────────────────────────────────────
 st.markdown("""
-<div class="topbar">
-    <div class="topbar-logo">⚡ VELERAX</div>
-    <div class="topbar-tag">Street Car Valuation Engine</div>
-    <div class="topbar-right">LIVE // INDIA MARKET</div>
+<div class="main-card">
+<div class="app-header">
+    <h1>🚗 Ultimate Car Price Predictor</h1>
+    <p>R² Score: <strong>90.1%</strong> &nbsp;|&nbsp; Powered by Random Forest ML &nbsp;|&nbsp; India Used Car Market</p>
 </div>
 """, unsafe_allow_html=True)
 
-# ── HERO ──────────────────────────────────────────────
-st.markdown("""
-<div class="hero-wrap">
-    <div class="speed-lines"></div>
-    <div class="hero-eyebrow">// AI-Powered Street Valuation</div>
-    <div class="hero-h1">
-        <span class="red">PRICE</span> YOUR<br>
-        <span class="blue">RIDE.</span>
-    </div>
-    <div class="hero-sub">
-        Built for those who live life a quarter mile at a time.
-        Enter your car details — we'll tell you exactly what it's worth on the street.
-    </div>
-</div>
-""", unsafe_allow_html=True)
+# ── FORM BODY ─────────────────────────────────────────
+st.markdown('<div class="form-body">', unsafe_allow_html=True)
 
-# ── RANDOM QUOTE BANNER ───────────────────────────────
-q = random.choice(FF_QUOTES)
-st.markdown(f"""
-<div class="quote-banner">
-    <div class="quote-icon">🏎️</div>
-    <div>
+col_form, col_result = st.columns([1.1, 0.9])
+
+with col_form:
+    st.markdown('<div class="section-title">📝 Enter Car Details</div>', unsafe_allow_html=True)
+
+    brand      = st.selectbox("Brand",       sorted(df["Brand"].dropna().unique()))
+    model_name = st.selectbox("Model",       sorted(df["model"].dropna().unique()))
+    year       = st.number_input("Year",      min_value=1990, max_value=2024, value=2020)
+    km_driven  = st.number_input("KM Driven", min_value=0, max_value=500000, value=50000, step=1000)
+    transmission = st.selectbox("Transmission", sorted(df["Transmission"].dropna().unique()))
+    owner        = st.selectbox("Owner",        sorted(df["Owner"].dropna().unique()))
+    fuel         = st.selectbox("Fuel Type",    sorted(df["FuelType"].dropna().unique()))
+    predict_btn  = st.button("🔮 PREDICT PRICE")
+
+with col_result:
+    st.markdown('<div class="section-title">🎯 Prediction Results</div>', unsafe_allow_html=True)
+
+    q = random.choice(FF_QUOTES)
+    st.markdown(f"""
+    <div class="quote-box">
         <div class="quote-text">"{q[0]}"</div>
         <div class="quote-author">— {q[1]}</div>
     </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ── FORM ──────────────────────────────────────────────
-st.markdown('<div class="form-wrap">', unsafe_allow_html=True)
-st.markdown('<div class="form-label">// Enter Your Car Details</div>', unsafe_allow_html=True)
-
-c1, c2, c3 = st.columns(3)
-
-with c1:
-    brand      = st.selectbox("Brand",     sorted(df["Brand"].dropna().unique()))
-    model_name = st.selectbox("Model",     sorted(df["model"].dropna().unique()))
-    fuel       = st.selectbox("Fuel Type", sorted(df["FuelType"].dropna().unique()))
-
-with c2:
-    year      = st.number_input("Year",      min_value=1990, max_value=2024, value=2018)
-    km_driven = st.number_input("KM Driven", min_value=0, max_value=500000, value=50000, step=1000)
-    age       = 2026 - year
-    st.markdown(f"""
-    <div style="background:#0f0f1a;border:1px solid #ff2d0044;border-left:3px solid #ff2d00;
-                border-radius:4px;padding:12px 16px;margin-top:4px">
-        <div style="font-family:'Orbitron',monospace;font-size:9px;
-                    letter-spacing:0.2em;color:#5a5870;text-transform:uppercase;
-                    margin-bottom:4px">Vehicle Age</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;
-                    color:#ff2d00;text-shadow:0 0 15px #ff2d0066">
-            {age} YEARS
-        </div>
-    </div>
     """, unsafe_allow_html=True)
 
-with c3:
-    transmission = st.selectbox("Transmission", sorted(df["Transmission"].dropna().unique()))
-    owner        = st.selectbox("Owner",        sorted(df["Owner"].dropna().unique()))
-    st.markdown("<br>", unsafe_allow_html=True)
-    predict_btn  = st.button("🏁 ESTIMATE PRICE")
+    if predict_btn:
+        age      = 2026 - year
+        input_df = pd.DataFrame([[
+            year, age, km_driven, brand, model_name, transmission, owner, fuel
+        ]], columns=["Year","Age","kmDriven","Brand","model","Transmission","Owner","FuelType"])
+
+        price = float(model.predict(input_df)[0])
+        low   = int(price * 0.92)
+        high  = int(price * 1.08)
+        kpy   = int(km_driven / (age + 1))
+
+        # Estimate original price (when new)
+        # Use age-based depreciation: ~10% per year compounded
+        depreciation_rate = 0.10
+        original_estimate = price * ((1 + depreciation_rate) ** age)
+
+        st.markdown(f"""
+        <div class="result-box">
+            <div style="font-size:13px;opacity:0.85;letter-spacing:0.1em;text-transform:uppercase">
+                Estimated Market Price
+            </div>
+            <div class="result-price">₹{int(price):,}</div>
+            <div class="result-sub">Range: ₹{low:,} — ₹{high:,}</div>
+            <div class="stat-chips">
+                <div class="stat-chip">
+                    <div class="stat-chip-val">90.1%</div>
+                    <div class="stat-chip-lbl">R² Score</div>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-val">{age}yr</div>
+                    <div class="stat-chip-lbl">Car Age</div>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-val">{kpy:,}</div>
+                    <div class="stat-chip-lbl">KM / Year</div>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-val">{fuel[:3].upper()}</div>
+                    <div class="stat-chip-lbl">Fuel</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── ORIGINAL vs CURRENT PRICE CHART ──────────────
+        fig = go.Figure()
+
+        categories = ['Original Price\n(When New)', 'Current Market\nValue', 'Price Range\n(Low)', 'Price Range\n(High)']
+        values     = [int(original_estimate), int(price), low, high]
+        colors     = ['#667eea', '#ff6b6b', '#feca57', '#48cae4']
+
+        fig.add_trace(go.Bar(
+            x=categories,
+            y=values,
+            marker=dict(
+                color=colors,
+                line=dict(width=0),
+                opacity=0.92
+            ),
+            text=[f"₹{v:,}" for v in values],
+            textposition='outside',
+            textfont=dict(size=11, color='#333', family='Poppins, sans-serif'),
+        ))
+
+        fig.update_layout(
+            title=dict(
+                text="Original Price vs Current Market Value",
+                font=dict(family="Poppins, sans-serif", size=14, color="#333"),
+                x=0
+            ),
+            paper_bgcolor='#ffffff',
+            plot_bgcolor='#ffffff',
+            font=dict(family="Poppins, sans-serif", color="#888", size=11),
+            margin=dict(l=10, r=10, t=50, b=10),
+            xaxis=dict(
+                gridcolor='#f0f0f0',
+                linecolor='#e1e5e9',
+                tickfont=dict(size=10, color='#555')
+            ),
+            yaxis=dict(
+                gridcolor='#f0f0f0',
+                linecolor='#e1e5e9',
+                tickprefix='₹',
+                tickformat=',.0f',
+                tickfont=dict(size=10)
+            ),
+            showlegend=False,
+            height=300
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        st.markdown("""
+        <div style="background:#f8f9ff;border:2px dashed #e1e5e9;border-radius:16px;
+                    padding:48px 24px;text-align:center;color:#aaa">
+            <div style="font-size:3rem;margin-bottom:12px">🚗</div>
+            <div style="font-size:15px;font-weight:600;color:#bbb">
+                Fill in the details and click<br>Predict Price to see results
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
-
-# ── RESULT ────────────────────────────────────────────
-if predict_btn:
-    input_df = pd.DataFrame([[
-        year, age, km_driven, brand, model_name, transmission, owner, fuel
-    ]], columns=["Year","Age","kmDriven","Brand","model","Transmission","Owner","FuelType"])
-
-    price = float(model.predict(input_df)[0])
-    low   = int(price * 0.92)
-    high  = int(price * 1.08)
-    kpy   = int(km_driven / (age + 1))
-
-    rq = random.choice(FF_QUOTES)
-
-    st.markdown(f"""
-    <div class="result-wrap">
-        <div class="result-glow"></div>
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:24px">
-            <div>
-                <div class="result-eyebrow">// Estimated Street Value</div>
-                <div class="result-price">₹{int(price):,}</div>
-                <div class="result-range">RANGE: ₹{low:,} — ₹{high:,} &nbsp;|&nbsp; ±8% CONFIDENCE</div>
-                <div class="rchips">
-                    <div class="rchip"><strong>{brand[:8]}</strong>Brand</div>
-                    <div class="rchip"><strong>{model_name[:8]}</strong>Model</div>
-                    <div class="rchip"><strong>{year}</strong>Year</div>
-                    <div class="rchip"><strong>{km_driven:,}</strong>KM</div>
-                    <div class="rchip"><strong>{age}YR</strong>Age</div>
-                    <div class="rchip"><strong>{transmission[:4].upper()}</strong>Trans</div>
-                    <div class="rchip"><strong>{fuel[:3].upper()}</strong>Fuel</div>
-                    <div class="rchip"><strong>90.1%</strong>R²</div>
-                </div>
-            </div>
-            <div style="min-width:260px;max-width:320px">
-                <div class="stat-panel">
-                    <div class="stat-label">Transmission</div>
-                    <div class="stat-value">{transmission.upper()}</div>
-                </div>
-                <div class="stat-panel">
-                    <div class="stat-label">KM / Year</div>
-                    <div class="stat-value">{kpy:,} KM</div>
-                </div>
-                <div class="stat-panel">
-                    <div class="stat-label">Owner Type</div>
-                    <div class="stat-value">{owner.upper()[:10]}</div>
-                </div>
-                <div class="stat-panel" style="border-left-color:#ff2d00">
-                    <div class="stat-label">Model Accuracy</div>
-                    <div class="stat-value" style="color:#ff2d00;text-shadow:0 0 10px #ff2d0066">R² 90.1%</div>
-                </div>
-            </div>
-        </div>
-        <div style="margin-top:24px;border-top:1px solid #1a1a2a;padding-top:18px;
-                    font-family:'Bebas Neue',sans-serif;font-size:16px;
-                    color:#5a5870;letter-spacing:0.1em">
-            "{rq[0]}" <span style="color:#ff6b00;font-size:12px;
-            font-family:'Orbitron',monospace;margin-left:8px">— {rq[1]}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
 # ── ANALYTICS ─────────────────────────────────────────
 st.markdown('<div class="analytics-wrap">', unsafe_allow_html=True)
 st.markdown("""
-<div class="analytics-heading">MARKET <span class="red">INTEL</span></div>
+<div class="analytics-title">📊 Market Analytics</div>
+<div class="analytics-sub">Live insights from the Indian used car market dataset</div>
 """, unsafe_allow_html=True)
+
+CHART_BG = "#ffffff"
+GRID_C   = "#f0f0f8"
+
+def theme(fig, title=""):
+    fig.update_layout(
+        title=dict(text=title, font=dict(family="Poppins, sans-serif", size=13, color="#333"), x=0),
+        paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
+        font=dict(family="Poppins, sans-serif", color="#888", size=11),
+        margin=dict(l=10, r=10, t=44, b=10),
+        xaxis=dict(gridcolor=GRID_C, linecolor=GRID_C, zerolinecolor=GRID_C),
+        yaxis=dict(gridcolor=GRID_C, linecolor=GRID_C, zerolinecolor=GRID_C),
+        showlegend=False
+    )
+    return fig
 
 g1, g2 = st.columns(2)
 
 with g1:
-    fig = px.histogram(df, x="AskPrice", nbins=60,
-                       color_discrete_sequence=[ACC])
-    fig.update_traces(marker_line_width=0, opacity=0.9)
-    theme(fig, "PRICE DISTRIBUTION")
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(
+        x=df["AskPrice"], nbinsx=60,
+        marker=dict(color='#667eea', opacity=0.85, line=dict(width=0))
+    ))
+    theme(fig, "Price Distribution")
     fig.update_xaxes(title="Price (₹)", tickprefix="₹", tickformat=",.0f")
     fig.update_yaxes(title="Count")
     st.plotly_chart(fig, use_container_width=True)
@@ -650,13 +399,21 @@ with g1:
 with g2:
     top_brands = (df.groupby("Brand")["AskPrice"]
                   .median().sort_values(ascending=False)
-                  .head(12).reset_index())
-    fig = px.bar(top_brands, x="AskPrice", y="Brand", orientation="h",
-                 color="AskPrice",
-                 color_continuous_scale=[[0, GRID],[0.5, ACC2],[1, ACC]])
-    fig.update_traces(marker_line_width=0)
-    fig.update_coloraxes(showscale=False)
-    theme(fig, "TOP 12 BRANDS BY VALUE")
+                  .head(10).reset_index())
+    fig = go.Figure(go.Bar(
+        x=top_brands["AskPrice"].tolist(),
+        y=top_brands["Brand"].tolist(),
+        orientation='h',
+        marker=dict(
+            color=top_brands["AskPrice"].tolist(),
+            colorscale=[[0,'#feca57'],[1,'#ff6b6b']],
+            line=dict(width=0)
+        ),
+        text=[f"₹{v:,.0f}" for v in top_brands["AskPrice"]],
+        textposition='outside',
+        textfont=dict(size=10)
+    ))
+    theme(fig, "Median Price by Brand (Top 10)")
     fig.update_xaxes(title="₹", tickprefix="₹", tickformat=",.0f")
     fig.update_yaxes(title="")
     st.plotly_chart(fig, use_container_width=True)
@@ -674,13 +431,13 @@ with g3:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=x_vals.tolist(), y=y_vals.tolist(), mode="markers",
-        marker=dict(color=ACC, size=4, opacity=0.35)
+        marker=dict(color='#667eea', size=4, opacity=0.35)
     ))
     fig.add_trace(go.Scatter(
         x=x_line.tolist(), y=p(x_line).tolist(), mode="lines",
-        line=dict(color=NEON, width=2, dash="dash")
+        line=dict(color="#ff6b6b", width=2, dash="dash")
     ))
-    theme(fig, "PRICE vs KM DRIVEN")
+    theme(fig, "Price vs KM Driven")
     fig.update_xaxes(title="KM Driven", tickformat=",.0f")
     fig.update_yaxes(title="Price (₹)", tickprefix="₹", tickformat=",.0f")
     st.plotly_chart(fig, use_container_width=True)
@@ -694,14 +451,14 @@ with g4:
         x=age_price["Age"].tolist(),
         y=age_price["AskPrice"].tolist(),
         mode="lines+markers",
-        line=dict(color=ACC, width=3),
-        marker=dict(color=ACC, size=7),
+        line=dict(color="#764ba2", width=3),
+        marker=dict(color="#ff6b6b", size=8,
+                    line=dict(color="#fff", width=2)),
         fill="tozeroy",
-        fillcolor="rgba(255, 45, 0, 0.1)",
-        showlegend=False
+        fillcolor="#667eea18"
     ))
-    theme(fig, "DEPRECIATION CURVE")
-    fig.update_xaxes(title="Age (years)")
+    theme(fig, "Price Depreciation by Age")
+    fig.update_xaxes(title="Car Age (years)")
     fig.update_yaxes(title="Median Price (₹)", tickprefix="₹", tickformat=",.0f")
     st.plotly_chart(fig, use_container_width=True)
 
@@ -709,69 +466,50 @@ g5, g6 = st.columns(2)
 
 with g5:
     fuel_data = df["FuelType"].value_counts().reset_index()
-    fuel_data.columns = ["FuelType", "Count"]
-    fig = px.pie(fuel_data, names="FuelType", values="Count",
-                 color_discrete_sequence=[
-                     "#ff2d00","#ff6b00","#00d4ff","#ff9500","#5a5870","#f0ede8"
-                 ])
-    fig.update_traces(
-        textposition="outside",
-        textfont=dict(color=TEXT, size=12),
-        marker=dict(line=dict(color=CB, width=2))
-    )
-    theme(fig, "FUEL TYPE BREAKDOWN")
+    fuel_data.columns = ["FuelType","Count"]
+    fig = go.Figure(go.Pie(
+        labels=fuel_data["FuelType"].tolist(),
+        values=fuel_data["Count"].tolist(),
+        hole=0.45,
+        marker=dict(
+            colors=['#667eea','#ff6b6b','#feca57','#48cae4','#06d6a0','#f72585'],
+            line=dict(color='#ffffff', width=2)
+        ),
+        textfont=dict(size=12)
+    ))
+    theme(fig, "Listings by Fuel Type")
     fig.update_layout(showlegend=True,
-                      legend=dict(font=dict(color=TEXT), bgcolor=CARD))
+                      legend=dict(font=dict(color="#555"), bgcolor="#fff"))
     st.plotly_chart(fig, use_container_width=True)
 
 with g6:
     owner_price = (df.groupby("Owner")["AskPrice"]
                    .median().reset_index().dropna()
                    .sort_values("AskPrice", ascending=False))
-    fig = px.bar(owner_price, x="Owner", y="AskPrice",
-                 color="AskPrice",
-                 color_continuous_scale=[[0, GRID],[0.5, ACC2],[1, ACC]])
-    fig.update_traces(marker_line_width=0)
-    fig.update_coloraxes(showscale=False)
-    theme(fig, "PRICE BY OWNER TYPE")
+    fig = go.Figure(go.Bar(
+        x=owner_price["Owner"].tolist(),
+        y=owner_price["AskPrice"].tolist(),
+        marker=dict(
+            color=owner_price["AskPrice"].tolist(),
+            colorscale=[[0,'#feca57'],[1,'#667eea']],
+            line=dict(width=0)
+        ),
+        text=[f"₹{v:,.0f}" for v in owner_price["AskPrice"]],
+        textposition='outside',
+        textfont=dict(size=10)
+    ))
+    theme(fig, "Median Price by Owner Type")
     fig.update_xaxes(title="Owner")
     fig.update_yaxes(title="Median Price (₹)", tickprefix="₹", tickformat=",.0f")
     st.plotly_chart(fig, use_container_width=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
-
-# ── QUOTES SECTION ────────────────────────────────────
-st.markdown('<div class="quotes-wrap">', unsafe_allow_html=True)
-st.markdown("""
-<div class="quotes-heading">THE <span>CODE</span> OF THE STREET</div>
-""", unsafe_allow_html=True)
-
-# 6 quotes in 2 rows of 3
-selected = random.sample(FF_QUOTES, 6)
-cols = st.columns(3)
-for i, (qt, auth) in enumerate(selected):
-    with cols[i % 3]:
-        st.markdown(f"""
-        <div class="qcard">
-            <div class="qcard-text">"{qt}"</div>
-            <div class="qcard-author">
-                <span class="qcard-dash"></span>{auth}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)  # close main-card
 
 # ── FOOTER ────────────────────────────────────────────
 st.markdown("""
-<div class="footer">
-    <div class="footer-left">
-        VELERAX STREET VALUATOR &nbsp;·&nbsp; RANDOM FOREST ML
-        &nbsp;·&nbsp; R² 90.1%<br>
-        BUILT WITH STREAMLIT &nbsp;·&nbsp; INDIA USED CAR MARKET DATA
-    </div>
-    <div class="footer-right">
-        MADE BY &nbsp;<span>VELERAX</span>
-    </div>
+<div class="app-footer">
+    Ultimate Car Price Predictor &nbsp;·&nbsp; Random Forest ML &nbsp;·&nbsp; R² 90.1%
+    &nbsp;&nbsp;|&nbsp;&nbsp; MADE BY <span>VELERAX</span>
 </div>
 """, unsafe_allow_html=True)
